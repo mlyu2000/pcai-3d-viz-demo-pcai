@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pcai.viz.app" . }}
+  namespace: {{ .Values.platform.namespace }}
+  labels:
+    {{- include "pcai.viz.labels" . | nindent 4 }}
+    app: viz-demo-app
+spec:
+  replicas: {{ .Values.app.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: viz-demo-app }
+  template:
+    metadata:
+      labels:
+        app: viz-demo-app
+        {{- include "pcai.viz.labels" . | nindent 8 }}
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.platform.imagePullSecret }}
+      containers:
+        - name: app
+          image: "{{ .Values.platform.registry }}/pcai-viz-app:{{ .Values.images.app.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # MLIS i2i predictor (existing — no new model deployment)
+            - name: IMG_ENDPOINT
+              value: {{ .Values.endpoints.imageGen.url | quote }}
+            - name: IMG_MODEL
+              value: {{ .Values.endpoints.imageGen.model | quote }}
+            - name: MLIS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.mlisKey.name }}
+                  key: {{ .Values.secrets.mlisKey.key }}
+                  optional: true
+            # asset store on the PVC
+            - name: DATA_DIR
+              value: /data
+            - name: DOMAIN
+              value: {{ .Values.platform.domain | quote }}
+            # App version label (matches the image tag so /api/health never drifts)
+            - name: APP_VERSION
+              value: {{ .Values.images.app.tag | quote }}
+          resources:
+            requests:
+              cpu: {{ .Values.app.cpu.request | quote }}
+              memory: {{ .Values.app.memory.request | quote }}
+            limits:
+              cpu: {{ .Values.app.cpu.limit | quote }}
+              memory: {{ .Values.app.memory.limit | quote }}
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          {{- if eq (default "pvc" .Values.storage.type) "pvc" }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.storage.pvcName }}
+          {{- else }}
+          emptyDir: { sizeLimit: {{ .Values.storage.emptyDirSize | quote }} }
+          {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        # NFS volume arrives root:root and the cluster blocks root init
+        # containers (Kyverno enforces pod-level runAsNonRoot) — fsGroup
+        # chowns the mount to gid 1000 + setgid so the app can write.
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pcai.viz.app" . }}
+  namespace: {{ .Values.platform.namespace }}
+  labels:
+    {{- include "pcai.viz.labels" . | nindent 4 }}
+    app: viz-demo-app
+spec:
+  selector: { app: viz-demo-app }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000

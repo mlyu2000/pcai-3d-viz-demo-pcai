@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PCAI 3D Visualization — System Architecture</title>
+<style>
+  body { margin:0; background:transparent; color:var(--foreground,#e8e8ee);
+         font-family: var(--font-family, 'Segoe UI', system-ui, sans-serif); }
+  .wrap { width:1180px; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--muted-foreground,#9a9aa5); font-size:12.5px; margin:0 0 14px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; font-size:12px; color:var(--muted-foreground,#9a9aa5); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .chip { width:12px; height:12px; border-radius:3px; display:inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PCAI 3D Visualization — System Architecture (live on CS1, v14.x)</h1>
+  <p class="sub">One backend pod + NFS PVC, reusing existing on-prem AI (Qwen-Image-Edit · CS1 LLM · one A100). Artist-side Blender is client-side; Tier 2 calls the LLM directly.</p>
+  <svg width="1180" height="820" viewBox="0 0 1180 820" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ar"  markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#7fd4ff"/></marker>
+      <marker id="ar2" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#b48cff"/></marker>
+      <marker id="ar3" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#ffb37f"/></marker>
+      <marker id="ar4" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#7fe0a8"/></marker>
+    </defs>
+
+    <!-- ===== LAYER BORDERS ===== -->
+    <rect x="20" y="30"  width="1140" height="140" rx="14" fill="rgba(127,212,255,0.05)" stroke="#7fd4ff" stroke-opacity="0.55" stroke-width="1.5"/>
+    <text x="40" y="56" fill="#7fd4ff" font-size="15" font-weight="700">Artist's browser (Three.js SPA) — https://viz-demo.aie.cs1.ctc.sg.lab</text>
+
+    <rect x="820" y="200" width="340" height="330" rx="14" fill="rgba(127,224,168,0.05)" stroke="#7fe0a8" stroke-opacity="0.55" stroke-width="1.5"/>
+    <text x="840" y="228" fill="#7fe0a8" font-size="15" font-weight="700">Artist workstation — Blender 4.x / 5.x</text>
+
+    <rect x="20" y="200" width="780" height="600" rx="14" fill="rgba(180,140,255,0.04)" stroke="#b48cff" stroke-opacity="0.5" stroke-width="1.5"/>
+    <text x="40" y="228" fill="#b48cff" font-size="15" font-weight="700">CS1 cluster (HPE Ezmeral / PCAI) — namespace <tspan font-weight="400">viz-demo</tspan></text>
+
+    <!-- ===== BROWSER BOXES ===== -->
+    <rect x="60"  y="72" width="400" height="86" rx="10" fill="rgba(255,255,255,0.04)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="80" y="96" fill="#eaf6ff" font-size="13.5" font-weight="600">Studio tab</text>
+    <text x="80" y="115" fill="#9fb4c8" font-size="11.5">Reference (upload / URL / samples) · strength</text>
+    <text x="80" y="133" fill="#9fb4c8" font-size="11.5">Generate → albedo + PBR · "Build 3D from the image"</text>
+    <text x="80" y="151" fill="#9fb4c8" font-size="11.5">Downloads: maps · Blender-pack · .blend</text>
+
+    <rect x="490" y="72" width="310" height="86" rx="10" fill="rgba(255,255,255,0.04)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="510" y="96" fill="#eaf6ff" font-size="13.5" font-weight="600">3D preview (Three.js)</text>
+    <text x="510" y="115" fill="#9fb4c8" font-size="11.5">albedo map + height bump · or real GLB</text>
+    <text x="510" y="133" fill="#9fb4c8" font-size="11.5">orbit controls · live in-browser</text>
+
+    <rect x="830" y="72" width="300" height="86" rx="10" fill="rgba(255,255,255,0.04)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="850" y="96" fill="#eaf6ff" font-size="13.5" font-weight="600">Library tab</text>
+    <text x="850" y="115" fill="#9fb4c8" font-size="11.5">asset grid · search · rename / tag</text>
+    <text x="850" y="133" fill="#9fb4c8" font-size="11.5">persistent (NFS PVC) · per-asset downloads</text>
+
+    <!-- ===== APP POD ===== -->
+    <rect x="60" y="262" width="700" height="290" rx="12" fill="rgba(255,255,255,0.035)" stroke="#d0d6ff" stroke-width="1.2"/>
+    <text x="80" y="290" fill="#ffffff" font-size="15" font-weight="700">viz-demo-app&nbsp; pod&nbsp; <tspan fill="#9a9aa5" font-size="12" font-weight="400">(pcai-viz-app · FastAPI · CPU-only · 1 vCPU / 2 Gi)</tspan></text>
+
+    <rect x="80" y="306" width="320" height="104" rx="9" fill="rgba(127,212,255,0.08)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="96" y="329" fill="#eaf6ff" font-size="13" font-weight="600">generate pipeline (main.py + texture.py)</text>
+    <text x="96" y="349" fill="#9fb4c8" font-size="11.5">ingest → delight → AI albedo (i2i)</text>
+    <text x="96" y="367" fill="#9fb4c8" font-size="11.5">→ deterministic PBR + quality gates (retry ≤2)</text>
+    <text x="96" y="385" fill="#9fb4c8" font-size="11.5">→ 3D step → persist → library</text>
+    <text x="96" y="403" fill="#7fd4ff" font-size="11">synchronous · threadpool · idempotent asset IDs</text>
+
+    <rect x="420" y="306" width="320" height="104" rx="9" fill="rgba(180,140,255,0.08)" stroke="#b48cff" stroke-width="1"/>
+    <text x="436" y="329" fill="#efe6ff" font-size="13" font-weight="600">asset store + blender-pack (blender_pack.py)</text>
+    <text x="436" y="349" fill="#c4b5e0" font-size="11.5">/api/assets CRUD · maps · model.glb/obj</text>
+    <text x="436" y="367" fill="#c4b5e0" font-size="11.5">zip: 5 maps + scene.py + README + CA + key</text>
+    <text x="436" y="385" fill="#c4b5e0" font-size="11.5">meta.json per asset (lineage seed)</text>
+    <text x="436" y="403" fill="#b48cff" font-size="11">library = directory scan (no DB in PoC)</text>
+
+    <rect x="80" y="420" width="320" height="88" rx="9" fill="rgba(255,179,127,0.07)" stroke="#ffb37f" stroke-width="1"/>
+    <text x="96" y="443" fill="#fff0e3" font-size="13" font-weight="600">real3d client (real3d.py)</text>
+    <text x="96" y="463" fill="#d8b598" font-size="11.5">Hunyuan3D-2.1: async /send + /status poll</text>
+    <text x="96" y="481" fill="#d8b598" font-size="11.5">resilient to transient 502/503/504</text>
+    <text x="96" y="499" fill="#ffb37f" font-size="11">→ textured GLB (octree 512, 10 steps)</text>
+
+    <rect x="420" y="420" width="320" height="88" rx="9" fill="rgba(127,224,168,0.07)" stroke="#7fe0a8" stroke-width="1"/>
+    <text x="436" y="443" fill="#e6fff1" font-size="13" font-weight="600">CPU 2.5D fallback (geometry.py)</text>
+    <text x="436" y="463" fill="#9fd0b0" font-size="11.5">rembg U2NetP silhouette + Depth-Anything V2</text>
+    <text x="436" y="481" fill="#9fd0b0" font-size="11.5">→ textured relief OBJ</text>
+    <text x="436" y="499" fill="#7fe0a8" font-size="11">auto when GPU busy — flow never dead-ends</text>
+
+    <rect x="80" y="516" width="660" height="30" rx="8" fill="rgba(255,255,255,0.03)" stroke="#8a8f9a" stroke-width="1"/>
+    <text x="96" y="536" fill="#c8ccd6" font-size="11">REST: /api/generate · /api/assets/* · /api/samples · /api/health · static SPA (Three.js, no CDN)</text>
+
+    <!-- ===== BLENDER WORKSTATION CONTENT ===== -->
+    <rect x="840" y="244" width="300" height="150" rx="10" fill="rgba(255,255,255,0.04)" stroke="#7fe0a8" stroke-width="1"/>
+    <text x="856" y="268" fill="#e6fff1" font-size="13" font-weight="600">VIZ Demo add-on (viz_demo_addon.py)</text>
+    <text x="856" y="290" fill="#9fd0b0" font-size="11.5">Tier 1 — load pack: bake PBR maps,</text>
+    <text x="856" y="308" fill="#9fd0b0" font-size="11.5">load real GLB/OBJ, set up materials</text>
+    <text x="856" y="330" fill="#9fd0b0" font-size="11.5">Tier 2 — AI Model Box:</text>
+    <text x="856" y="348" fill="#9fd0b0" font-size="11.5">prompt → LLM → bpy code → AST safe-check</text>
+    <text x="856" y="366" fill="#9fd0b0" font-size="11.5">→ exec in scene → retry ×3 on error</text>
+    <text x="856" y="384" fill="#7fe0a8" font-size="11.5">Blender 5.x API-aware system prompt</text>
+
+    <rect x="840" y="408" width="300" height="80" rx="10" fill="rgba(255,255,255,0.035)" stroke="#7fe0a8" stroke-width="1"/>
+    <text x="856" y="432" fill="#e6fff1" font-size="13" font-weight="600">Output: real .blend scene</text>
+    <text x="856" y="452" fill="#9fd0b0" font-size="11.5">PBR materials + geometry, editable in</text>
+    <text x="856" y="470" fill="#9fd0b0" font-size="11.5">the artist's DCC — not a locked viewer</text>
+
+    <!-- ===== BOTTOM BAND (in cluster) ===== -->
+    <rect x="60" y="566" width="300" height="100" rx="10" fill="rgba(255,255,255,0.035)" stroke="#d0d6ff" stroke-width="1.2"/>
+    <text x="78" y="590" fill="#ffffff" font-size="13" font-weight="700">blend sidecar (pcái-viz-blend)</text>
+    <text x="78" y="610" fill="#9fb4c8" font-size="11">headless Blender via bpy wheel · 1 vCPU / 2 Gi</text>
+    <text x="78" y="628" fill="#9fb4c8" font-size="11">POST /build-blend → builds the .blend</text>
+    <text x="78" y="646" fill="#7fd4ff" font-size="11">proxied to browser at /api/assets/{id}/blend</text>
+
+    <rect x="60" y="676" width="300" height="112" rx="10" fill="rgba(127,212,255,0.07)" stroke="#7fd4ff" stroke-width="1.2"/>
+    <text x="78" y="700" fill="#eaf6ff" font-size="13" font-weight="600">NFS PVC — viz-results (10 Gi, RWO)</text>
+    <text x="78" y="720" fill="#9fb4c8" font-size="11">/data: references · generated/{id}/ · blends/</text>
+    <text x="78" y="738" fill="#9fb4c8" font-size="11">5 maps + model.glb/obj + meta.json</text>
+    <text x="78" y="756" fill="#7fd4ff" font-size="11">persists across pod restarts · no DB (PoC)</text>
+
+    <rect x="380" y="566" width="180" height="222" rx="10" fill="rgba(180,140,255,0.06)" stroke="#b48cff" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="396" y="590" fill="#efe6ff" font-size="13" font-weight="600">Qwen-Image-Edit</text>
+    <text x="396" y="608" fill="#efe6ff" font-size="11.5">i2i (albedo)</text>
+    <text x="396" y="632" fill="#c4b5e0" font-size="11">existing MLIS predictor</text>
+    <text x="396" y="650" fill="#c4b5e0" font-size="11">on the A100</text>
+    <text x="396" y="674" fill="#c4b5e0" font-size="11">/v1/images/edits</text>
+    <text x="396" y="692" fill="#c4b5e0" font-size="11">single reference</text>
+    <text x="396" y="716" fill="#c4b5e0" font-size="11">~15–60 s</text>
+    <text x="396" y="740" fill="#b48cff" font-size="11">fallback: the reference</text>
+    <text x="396" y="756" fill="#b48cff" font-size="11">itself (if cold/down)</text>
+
+    <rect x="580" y="566" width="180" height="222" rx="10" fill="rgba(255,179,127,0.06)" stroke="#ffb37f" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="596" y="590" fill="#fff0e3" font-size="13" font-weight="600">Hunyuan3D-2.1</text>
+    <text x="596" y="608" fill="#fff0e3" font-size="11.5">image → 3D</text>
+    <text x="596" y="632" fill="#d8b598" font-size="11">k8s Deployment</text>
+    <text x="596" y="650" fill="#d8b598" font-size="11">on the existing A100</text>
+    <text x="596" y="674" fill="#d8b598" font-size="11">async /send + /status</text>
+    <text x="596" y="692" fill="#d8b598" font-size="11">texture = true</text>
+    <text x="596" y="716" fill="#d8b598" font-size="11">octree 512 · 10 steps</text>
+    <text x="596" y="740" fill="#ffb37f" font-size="11">→ textured GLB</text>
+    <text x="596" y="756" fill="#ffb37f" font-size="11">~3–4 min</text>
+
+    <!-- ===== LLM (reused CS1 service, called by add-on directly) ===== -->
+    <rect x="820" y="566" width="340" height="222" rx="10" fill="rgba(127,224,168,0.06)" stroke="#7fe0a8" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="840" y="590" fill="#e6fff1" font-size="13.5" font-weight="600">CS1 LiteLLM — qwen3-8-27b (reasoning)</text>
+    <text x="840" y="612" fill="#9fd0b0" font-size="11.5">existing LLM · /v1/chat/completions</text>
+    <text x="840" y="634" fill="#9fd0b0" font-size="11.5">public ingress + private CA + scoped key</text>
+    <text x="840" y="658" fill="#9fd0b0" font-size="11.5">called directly by the add-on (Tier 2)</text>
+    <text x="840" y="676" fill="#9fd0b0" font-size="11.5">— never by the app pod</text>
+    <text x="840" y="700" fill="#9fd0b0" font-size="11.5">urllib · AST safe-check (blocklist) · retry ×3</text>
+    <text x="840" y="722" fill="#7fe0a8" font-size="11.5">Blender 5.x API-aware prompt · empty-code guard</text>
+    <text x="840" y="744" fill="#7fe0a8" font-size="11.5">LLM_MAX_TOKENS = 10240 · timeout 300 s</text>
+
+    <!-- ===== ARROWS ===== -->
+    <line x1="260" y1="170" x2="260" y2="260" stroke="#7fd4ff" stroke-width="1.8" marker-end="url(#ar)"/>
+    <text x="272" y="220" fill="#7fd4ff" font-size="11.5">REST /api/* (HTTPS via Istio VirtualService · 420 s route timeout)</text>
+
+    <line x1="210" y1="552" x2="210" y2="564" stroke="#7fd4ff" stroke-width="1.8" marker-end="url(#ar)"/>
+    <line x1="470" y1="552" x2="470" y2="564" stroke="#b48cff" stroke-width="1.8" marker-end="url(#ar2)"/>
+    <line x1="670" y1="552" x2="670" y2="564" stroke="#ffb37f" stroke-width="1.8" marker-end="url(#ar3)"/>
+    <text x="222" y="562" fill="#7fd4ff" font-size="10.5">build .blend</text>
+    <text x="482" y="562" fill="#b48cff" font-size="10.5">images/edits → albedo</text>
+    <text x="682" y="562" fill="#ffb37f" font-size="10.5">send · status → GLB</text>
+
+    <line x1="210" y1="666" x2="210" y2="674" stroke="#7fd4ff" stroke-width="1.6" marker-end="url(#ar)"/>
+    <text x="222" y="674" fill="#7fd4ff" font-size="10.5">write /data</text>
+
+    <line x1="990" y1="530" x2="990" y2="564" stroke="#7fe0a8" stroke-width="1.8" marker-end="url(#ar4)"/>
+    <text x="1000" y="552" fill="#7fe0a8" font-size="11">Tier 2: prompt → bpy code</text>
+
+    <line x1="980" y1="170" x2="980" y2="198" stroke="#7fe0a8" stroke-width="1.8" marker-end="url(#ar4)"/>
+    <text x="992" y="190" fill="#7fe0a8" font-size="11">Tier 1: Blender-pack zip</text>
+  </svg>
+
+  <div class="legend">
+    <span><span class="chip" style="background:#7fd4ff"></span>Browser / web (Three.js SPA) + storage</span>
+    <span><span class="chip" style="background:#d0d6ff"></span>App pod (FastAPI) + blend sidecar</span>
+    <span><span class="chip" style="background:#b48cff"></span>Qwen-Image-Edit (existing MLIS i2i)</span>
+    <span><span class="chip" style="background:#ffb37f"></span>Hunyuan3D-2.1 (A100, image→3D)</span>
+    <span><span class="chip" style="background:#7fe0a8"></span>Artist-side Blender + CS1 LLM (Tier 2)</span>
+    <span style="opacity:.75">dashed = reused existing services (no new deployment)</span>
+  </div>
+</div>
+</body>
+</html>

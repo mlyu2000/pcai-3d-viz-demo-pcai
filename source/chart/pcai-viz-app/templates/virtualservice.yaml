@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "pcai.viz.name" . }}
+  namespace: {{ .Values.platform.namespace }}
+  labels:
+    {{- include "pcai.viz.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ .Values.platform.domain }}
+  gateways:
+    - {{ .Values.platform.gateway }}
+  http:
+    # single pod serves both the API and the SPA — one route
+    - name: app
+      route:
+        - destination:
+            host: {{ include "pcai.viz.app" . }}
+            port: { number: 80 }

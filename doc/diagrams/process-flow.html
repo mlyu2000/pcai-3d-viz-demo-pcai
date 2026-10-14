@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PCAI 3D Viz — Process Flow (Artist Journey)</title>
+<style>
+  body { margin:0; background:transparent; color:var(--foreground,#e8e8ee);
+         font-family: var(--font-family,'Segoe UI',system-ui,sans-serif); }
+  .wrap { width:1180px; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--muted-foreground,#9a9aa5); font-size:12.5px; margin:0 0 14px; }
+  .flow { display:flex; align-items:stretch; gap:0; flex-wrap:nowrap; }
+  .step { flex:1; min-width:0; }
+  .card { border:1.2px solid; border-radius:12px; padding:12px 12px 10px; height:100%;
+          background:rgba(255,255,255,0.03); }
+  .arrow { align-self:center; color:var(--muted-foreground,#7a8090); font-size:26px;
+           padding:0 6px; flex:0 0 auto; }
+  .stepnum { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.5px;
+             padding:2px 8px; border-radius:20px; margin-bottom:6px; }
+  .stitle { font-size:14px; font-weight:700; margin:0 0 6px; }
+  .sbody { font-size:11.5px; line-height:1.5; color:#b9c0cc; }
+  .sbody b { color:#e8ecf2; font-weight:600; }
+  .shot { margin-top:8px; border:1px solid rgba(255,255,255,.12); border-radius:8px;
+          overflow:hidden; background:#0e1016; }
+  .shot img { display:block; width:100%; height:auto; }
+  .cap { font-size:10px; color:#8a90a0; padding:5px 7px; line-height:1.35;
+         border-top:1px solid rgba(255,255,255,.08); }
+  .tag { display:inline-block; font-size:9.5px; padding:1px 6px; border-radius:10px;
+         margin:3px 3px 0 0; border:1px solid; }
+  .foot { margin-top:14px; font-size:11.5px; color:var(--muted-foreground,#9a9aa5); line-height:1.55; }
+  .foot b { color:#c8ccd6; }
+  .note { margin-top:6px; font-size:11px; color:#8a90a0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Process Flow — the Artist's Journey (end to end)</h1>
+  <p class="sub">Screenshots are from the live deployment on CS1 (<code>viz-demo.aie.cs1.ctc.sg.lab</code>), real run: cup sample → real-3D GLB. Every step below is a real screen or artifact.</p>
+
+  <div class="flow">
+    <!-- STEP 1 -->
+    <div class="step">
+      <div class="card" style="border-color:#7fd4ff;">
+        <span class="stepnum" style="background:rgba(127,212,255,.15);color:#7fd4ff;">STEP 1</span>
+        <div class="stitle" style="color:#eaf6ff;">Pick a reference</div>
+        <div class="sbody">
+          Drop a photo, paste a URL, or pick a bundled <b>sample</b> (Car / Cup / Hat).
+          Optionally set <b>strength</b>, <b>seed</b>, and tick <b>“Build 3D from the image”</b>.
+        </div>
+        <div class="shot">
+          <img src="ui_studio.png" alt="Studio — reference panel">
+          <div class="cap">Studio tab: reference dropzone + sample library + Build-3D toggle.</div>
+        </div>
+        <span class="tag" style="border-color:#7fd4ff;color:#7fd4ff;">upload / URL / sample</span>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <!-- STEP 2 -->
+    <div class="step">
+      <div class="card" style="border-color:#b48cff;">
+        <span class="stepnum" style="background:rgba(180,140,255,.15);color:#b48cff;">STEP 2</span>
+        <div class="stitle" style="color:#efe6ff;">Generate textures</div>
+        <div class="sbody">
+          Click <b>Generate</b>. <b>Qwen-Image-Edit</b> turns the photo into a clean
+          <b>albedo</b>; the backend derives the full <b>PBR set</b> (height / normal /
+          roughness / metallic) + runs <b>quality gates</b>.
+        </div>
+        <div class="shot">
+          <img src="assets/albedo.png" alt="Generated albedo">
+          <div class="cap">Real <b>albedo.png</b> from the live run (1024×816).</div>
+        </div>
+        <span class="tag" style="border-color:#b48cff;color:#b48cff;">albedo</span>
+        <span class="tag" style="border-color:#b48cff;color:#b48cff;">height</span>
+        <span class="tag" style="border-color:#b48cff;color:#b48cff;">+normal/rough/metal</span>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <!-- STEP 3 -->
+    <div class="step">
+      <div class="card" style="border-color:#ffb37f;">
+        <span class="stepnum" style="background:rgba(255,179,127,.15);color:#ffb37f;">STEP 3</span>
+        <div class="stitle" style="color:#fff0e3;">Build real 3D</div>
+        <div class="sbody">
+          With “Build 3D” on, <b>Hunyuan3D-2.1</b> generates a true <b>textured mesh (GLB)</b>
+          on the A100 (~3–4 min). If the GPU is busy it transparently falls back to a
+          <b>2.5D CPU relief</b> — the flow never dead-ends.
+        </div>
+        <div class="shot">
+          <img src="ui_result.png" alt="Populated result — live 3D preview">
+          <div class="cap">Result: albedo + height thumbnails + <b>live textured 3D cup</b>; badges <b>model</b> &amp; <b>Real 3D · hunyuan3d-2.1</b>.</div>
+        </div>
+        <span class="tag" style="border-color:#ffb37f;color:#ffb37f;">GLB (real)</span>
+        <span class="tag" style="border-color:#7fe0a8;color:#7fe0a8;">2.5D fallback</span>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <!-- STEP 4 -->
+    <div class="step">
+      <div class="card" style="border-color:#7fe0a8;">
+        <span class="stepnum" style="background:rgba(127,224,168,.15);color:#7fe0a8;">STEP 4</span>
+        <div class="stitle" style="color:#e6fff1;">Save to library</div>
+        <div class="sbody">
+          Name &amp; tag it, hit <b>Save</b>. The asset lands in the shared <b>Library</b>
+          (persistent NFS PVC) — browse, search, reload into preview, or open later.
+        </div>
+        <div class="shot">
+          <img src="ui_library.png" alt="Asset library grid">
+          <div class="cap">Library grid — every asset with Maps / Blender-pack / Load buttons.</div>
+        </div>
+        <span class="tag" style="border-color:#7fe0a8;color:#7fe0a8;">persistent</span>
+        <span class="tag" style="border-color:#7fe0a8;color:#7fe0a8;">search / tag</span>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <!-- STEP 5 -->
+    <div class="step">
+      <div class="card" style="border-color:#d0d6ff;">
+        <span class="stepnum" style="background:rgba(208,214,255,.15);color:#d0d6ff;">STEP 5</span>
+        <div class="stitle" style="color:#ffffff;">Into Blender</div>
+        <div class="sbody">
+          <b>Tier 1:</b> download maps / the Blender-pack / a ready <b>.blend</b> → opens in the artist's own Blender with full PBR.
+          <b>Tier 2:</b> type a natural-language prompt → the LLM writes &amp; runs Blender code.
+        </div>
+        <div class="shot">
+          <img src="ui_blender.png" alt="Blender render of the textured cup">
+          <div class="cap"><b>Tier 1</b> — the same cup rendered in real Blender from the pack.</div>
+        </div>
+        <div class="shot">
+          <img src="ui_blender_tier2.png" alt="Blender render of an LLM-built car">
+          <div class="cap"><b>Tier 2</b> — a low-poly car built live by the LLM (6 objects, 1st attempt).</div>
+        </div>
+        <span class="tag" style="border-color:#d0d6ff;color:#d0d6ff;">Tier 1 pack</span>
+        <span class="tag" style="border-color:#d0d6ff;color:#d0d6ff;">.blend</span>
+        <span class="tag" style="border-color:#d0d6ff;color:#d0d6ff;">Tier 2 LLM</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>Loops &amp; quality gates (behind the scenes):</b> if the albedo fails a quality gate the backend
+    <b>re-generates up to 2×</b>; a reused asset is <b>self-healed</b> (a stale 2.5D asset is upgraded to real 3D
+    on the next “Build 3D”). <b>Idempotent:</b> the same photo → the same content-hash asset ID, so re-running returns the cached result instantly.
+    <div class="note">Tier 2 note: the AI Model Box runs entirely on the artist's machine — it calls the existing CS1 LLM directly (scoped virtual key + private CA), never the app pod.</div>
+  </div>
+</div>
+</body>
+</html>

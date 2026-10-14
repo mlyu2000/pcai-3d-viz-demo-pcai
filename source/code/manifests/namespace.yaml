@@ -1,0 +1,8 @@
+# PCAI 3D Viz PoC — namespace (same istio sidecar convention as styling-demo)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: viz-demo
+  labels:
+    app: viz-demo
+    istio.io/rev: default

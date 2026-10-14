@@ -1,0 +1,10 @@
+apiVersion: v2
+name: pcai-viz-demo
+description: >-
+  PCAI 3D Visualization PoC (Astra Daihatsu Motor / HPE Private Cloud AI).
+  Single pod: FastAPI backend + static Three.js frontend + file-based asset
+  library (NFS PVC). Texture generation uses the existing MLIS Qwen-Image-Edit
+  (i2i) predictor — zero new model/GPU deployments.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

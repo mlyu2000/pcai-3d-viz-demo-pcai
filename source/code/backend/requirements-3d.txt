@@ -1,0 +1,17 @@
+# PCAI 3D Viz PoC — ML geometry layer (image->3D, CPU-only).
+# Lazy-imported by backend/geometry.py; the core API never loads these at
+# startup (fast boot, core flow unaffected if this layer is absent).
+# Versions pinned to the verified .venv3d (rembg 2.0.85 / transformers 5.18 /
+# torch 2.14.1+cpu) — the offline model caches are baked into the image.
+#
+# CPU-only torch (the +cpu wheels live on the PyTorch index):
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cpu
+torchvision==0.29.1+cpu
+transformers==5.18.0
+# rembg (U2NetP silhouette) + its runtime deps (verified: no opencv needed)
+rembg==2.0.85
+onnxruntime==1.30.0
+scipy==1.17.1
+scikit-image==0.26.0
+pymatting==1.1.16

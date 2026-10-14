@@ -1,0 +1,24 @@
+# PCAI 3D Viz PoC — single route: one pod serves both API and SPA.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: viz-demo
+  namespace: viz-demo
+spec:
+  hosts:
+    - viz-demo.aie.cs1.ctc.sg.lab
+  gateways:
+    - istio-system/ezaf-gateway
+  http:
+    - name: app
+      # do_geometry=true runs a CPU mesh build (silhouette + depth) for ~40s.
+      # Istio's default route timeout is 30s and would cut it mid-flight, so
+      # set an explicit timeout (the app itself has no timeout on the
+      # synchronous generate). v14.8: octree 512 + 10 steps makes real3d take
+      # ~3-4 min, so 300s is too tight — raised to 420s.
+      timeout: 420s
+      route:
+        - destination:
+            host: viz-demo-app
+            port:
+              number: 80

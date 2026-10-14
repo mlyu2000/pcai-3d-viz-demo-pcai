@@ -1,0 +1,130 @@
+# Hunyuan3D-2.1 predictor — direct k8s Deployment + Service (NOT MLIS).
+#
+# WHY NOT MLIS: MLIS's model-registration pre-validation (checkModelImage) does an
+# unauthenticated `HEAD https://registry.ctc.sg.lab:5000/v2/.../manifests/v14` and
+# gets 401 (the registry is Basic-auth admin:admin; MLIS has no credential for it,
+# and its registry API only accepts s3/openllm/ngc/huggingface types). Every existing
+# predictor pulls PUBLIC docker.io images, so this is the first custom-registry image
+# and there's no in-cluster precedent. This Deployment+Service is the working fallback:
+# it uses the existing pcai-registry-pull (admin:admin) imagePullSecret, matches the
+# exact DNS the viz-demo backend expects, and is reversible (switch back to the MLIS
+# PackagedModel in register_mlis_hunyuan3d.py once the CS1 admin adds the registry cred).
+#
+# Serves the official api_server.py (FastAPI) on 8080: image -> 3D mesh + PBR -> GLB.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pcai-hunyuan3d-predictor
+  namespace: project-user-aieadmin
+  labels:
+    app: pcai-hunyuan3d-predictor
+    app.kubernetes.io/part-of: pcai-viz-demo
+    app.kubernetes.io/component: real3d
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # GPU is a scarce, node-pinned resource; avoid double-claim
+  selector:
+    matchLabels:
+      app: pcai-hunyuan3d-predictor
+  template:
+    metadata:
+      labels:
+        app: pcai-hunyuan3d-predictor
+        # Match the existing MLIS GPU predictors (hpe-ezua/app=mlis +
+        # component=inference-service) so the ezua GPU scheduler maps this pod to
+        # the mlis.inference-service partition (whole GPU) and the mlis-gpu
+        # priority class. Custom app/component values have no priority class and
+        # fail scheduling (InvalidPartitionSize).
+        hpe-ezua/app: mlis
+        hpe-ezua/component: inference-service
+        hpe-ezua/type: app-service-user
+        hpe-ezua/ezlicense.gpu: "approved"
+      annotations:
+        # Skip the ezprojects workload-security-context mutation; use the image's
+        # default user (root), matching the existing MLIS GPU predictors in this ns.
+        hpe-ezua/disable-sc: "true"
+    spec:
+      imagePullSecrets:
+        - name: pcai-registry-pull
+      # Pin to the freed A100 (the qwen-image-edit GPU was released for this).
+      nodeSelector:
+        kubernetes.io/hostname: mks-wrk-02-gpu.cs1.ctc.sg.lab
+      priorityClassName: mlis-gpu
+      containers:
+        - name: hunyuan3d
+          # v14.3 = v14.2 + RealESRGAN_x4plus.pth (paint pipeline super-model,
+          # loaded at init) + gradio_cache/ dir (SAVE_DIR; logger writes
+          # controller.log + per-uid .glb outputs here, must exist pre-import).
+          # v14.2 = v14.1 + mesh_utils.py bpy import made tolerant (bpy not
+          # needed at runtime: convert_obj_to_glb is save_glb-gated + the
+          # textured-GLB path uses pure-Python pygltflib).
+          # v14.1 = v14 + libgl1/libglib (pymeshlab runtime dep).
+          image: registry.ctc.sg.lab:5000/pcai-hunyuan3d-serve:v14.8
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: OMP_NUM_THREADS
+              value: "8"
+            - name: PYTORCH_CUDA_ALLOC_CONF
+              value: "expandable_segments:True"
+            # Weights were seeded onto this PVC by seed-hunyuan3d (shape + paint).
+            # The entrypoint sets HF_HOME=/models/hf-cache and uses
+            # /models/hunyuan3d-2.1 for the shape DiT.
+          resources:
+            requests:
+              cpu: "8"
+              memory: 64Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "16"
+              memory: 96Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          # The entrypoint loads ~29 GB of weights on the A100; give it a long
+          # window before readiness so the model load doesn't trip the probe.
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 90   # up to ~15 min for cold model load
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: pcai-wan-store
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pcai-hunyuan3d-predictor
+  namespace: project-user-aieadmin
+  labels:
+    app: pcai-hunyuan3d-predictor
+spec:
+  selector:
+    app: pcai-hunyuan3d-predictor
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

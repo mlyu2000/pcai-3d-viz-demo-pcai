@@ -1,0 +1,43 @@
+# PCAI 3D Viz PoC — platform config (same convention as the Styling Demo:
+# everything that differs between PCAI environments lives here; no secret
+# VALUES, only secret names/keys).
+
+platform:
+  domain: "viz-demo.aie.cs1.ctc.sg.lab"           # host the UI/API is served on
+  namespace: "viz-demo"                            # workload namespace (created by scripts/build-deploy.sh)
+  gateway: "istio-system/ezaf-gateway"            # Istio gateway that fronts the domain
+  registry: "registry.ctc.sg.lab:5000"            # airgapped registry
+  imagePullSecret: "regcred"
+  modelNamespace: "project-user-aieadmin"         # where the MLIS predictor runs
+
+images:
+  app: { tag: "v1" }
+
+# --- inference endpoint (existing MLIS predictor — the same one the Styling Demo uses) ---
+# i2i via POST /v1/images/edits (OpenAI-compatible, single-reference). The backend
+# embeds strength/steps/seed in <sd_cpp_extra_args> JSON (stable-diffusion.cpp
+# server ignores plain form params). Leave url empty to run in fallback mode
+# (reference image returned as-is) — the demo stays fully functional.
+endpoints:
+  imageGen:
+    url: "http://pcai-qwen-image-edit-gguf-predictor.project-user-aieadmin.svc.cluster.local:80"
+    model: "pcai-qwen-image-edit-gguf"
+
+# --- secrets (NAMES only; must exist in the viz-demo namespace —
+#     scripts/build-deploy.sh copies them from styling-demo) ---
+secrets:
+  mlisKey: { name: "mlis-key", key: "key" }
+
+# --- resource sizing (CPU-only backend; inference happens on the MLIS predictor) ---
+app:
+  replicas: 1
+  cpu: { request: "250m", limit: "1" }
+  memory: { request: "512Mi", limit: "1Gi" }
+
+# --- asset store (file-based; the PVC persists references + generated maps + meta) ---
+storage:
+  type: "pvc"              # "pvc" persists across restarts; "emptyDir" is portable default
+  pvcName: "viz-results"
+  size: "10Gi"
+  storageClass: "nfs"
+  emptyDirSize: "4Gi"

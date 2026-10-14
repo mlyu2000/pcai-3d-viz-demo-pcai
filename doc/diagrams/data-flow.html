@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PCAI 3D Viz — Data Flow</title>
+<style>
+  body { margin:0; background:transparent; color:var(--foreground,#e8e8ee);
+         font-family: var(--font-family,'Segoe UI',system-ui,sans-serif); }
+  .wrap { width:1180px; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--muted-foreground,#9a9aa5); font-size:12.5px; margin:0 0 14px; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-size:11.5px; color:var(--muted-foreground,#9a9aa5); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .chip { width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .foot { margin-top:12px; font-size:11.5px; color:var(--muted-foreground,#9a9aa5); line-height:1.55; }
+  .foot b { color:#c8ccd6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Data Flow — what bytes move, where they are stored, and in what format</h1>
+  <p class="sub">Traces the real artifacts from the live run (cup sample → asset <code>ta25aea835ae7af97</code>). Formats and sizes are from the actual generated files.</p>
+
+  <svg width="1180" height="860" viewBox="0 0 1180 860" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="d1" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#7fd4ff"/></marker>
+      <marker id="d2" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#b48cff"/></marker>
+      <marker id="d3" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#ffb37f"/></marker>
+      <marker id="d4" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#7fe0a8"/></marker>
+      <marker id="d5" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#d0d6ff"/></marker>
+    </defs>
+
+    <!-- ===== LANES ===== -->
+    <rect x="16" y="26" width="1148" height="150" rx="14" fill="rgba(127,212,255,0.05)" stroke="#7fd4ff" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="34" y="52" fill="#7fd4ff" font-size="14.5" font-weight="700">① CLIENT — browser (Three.js SPA)</text>
+    <text x="34" y="70" fill="#9fb4c8" font-size="11.5">Uploads the reference bytes; renders the result; downloads artifacts. No processing here.</text>
+
+    <rect x="16" y="196" width="1148" height="150" rx="14" fill="rgba(208,214,255,0.05)" stroke="#d0d6ff" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="34" y="222" fill="#ffffff" font-size="14.5" font-weight="700">② APP POD — FastAPI (CPU-only) — the orchestrator</text>
+    <text x="34" y="240" fill="#9fb4c8" font-size="11.5">Owns the pipeline: ingest → delight → albedo → PBR → 3D → persist. Runs every stage synchronously in a threadpool; every stage has a fallback.</text>
+
+    <rect x="16" y="366" width="1148" height="230" rx="14" fill="rgba(255,255,255,0.03)" stroke="#8a8f9a" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="34" y="392" fill="#c8ccd6" font-size="14.5" font-weight="700">③ AI SERVICES — existing / reused (no new GPU spend)</text>
+
+    <rect x="16" y="616" width="1148" height="212" rx="14" fill="rgba(127,212,255,0.05)" stroke="#7fd4ff" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="34" y="642" fill="#7fd4ff" font-size="14.5" font-weight="700">④ STORAGE — NFS PVC (persistent) + ⑤ ARTIST WORKSTATION</text>
+
+    <!-- ===== 1 CLIENT NODES ===== -->
+    <rect x="44" y="82" width="250" height="82" rx="10" fill="rgba(255,255,255,0.05)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="60" y="106" fill="#eaf6ff" font-size="12.5" font-weight="600">reference.png (input)</text>
+    <text x="60" y="126" fill="#9fb4c8" font-size="11">PNG/JPG · ≥512px · ≤8MB</text>
+    <text x="60" y="144" fill="#7fd4ff" font-size="10.5">upload / URL / bundled sample</text>
+
+    <rect x="316" y="82" width="250" height="82" rx="10" fill="rgba(255,255,255,0.05)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="332" y="106" fill="#eaf6ff" font-size="12.5" font-weight="600">3D preview (Three.js)</text>
+    <text x="332" y="126" fill="#9fb4c8" font-size="11">albedo+height bump OR real GLB</text>
+    <text x="332" y="144" fill="#7fd4ff" font-size="10.5">renders the downloaded maps / GLB</text>
+
+    <rect x="588" y="82" width="250" height="82" rx="10" fill="rgba(255,255,255,0.05)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="604" y="106" fill="#eaf6ff" font-size="12.5" font-weight="600">downloads</text>
+    <text x="604" y="126" fill="#9fb4c8" font-size="11">maps · Blender-pack(.zip) · .blend</text>
+    <text x="604" y="144" fill="#7fd4ff" font-size="10.5">artist takes files to their DCC</text>
+
+    <rect x="860" y="82" width="282" height="82" rx="10" fill="rgba(255,255,255,0.05)" stroke="#7fd4ff" stroke-width="1"/>
+    <text x="876" y="106" fill="#eaf6ff" font-size="12.5" font-weight="600">Library tab</text>
+    <text x="876" y="126" fill="#9fb4c8" font-size="11">GET /api/assets (dir scan)</text>
+    <text x="876" y="144" fill="#7fd4ff" font-size="10.5">browse / search / tag / reload</text>
+
+    <!-- ===== 2 APP POD NODES ===== -->
+    <rect x="44" y="248" width="250" height="86" rx="10" fill="rgba(208,214,255,0.06)" stroke="#d0d6ff" stroke-width="1"/>
+    <text x="60" y="272" fill="#ffffff" font-size="12.5" font-weight="600">ingest + delight</text>
+    <text x="60" y="292" fill="#c8ccd6" font-size="11">validate → delight (flatten light)</text>
+    <text x="60" y="310" fill="#d0d6ff" font-size="10.5">→ content-hash asset ID (idempotent)</text>
+    <text x="60" y="326" fill="#9fb4c8" font-size="10">texture.validate_reference / .delight</text>
+
+    <rect x="316" y="248" width="250" height="86" rx="10" fill="rgba(208,214,255,0.06)" stroke="#d0d6ff" stroke-width="1"/>
+    <text x="332" y="272" fill="#ffffff" font-size="12.5" font-weight="600">PBR synthesis (deterministic)</text>
+    <text x="332" y="292" fill="#c8ccd6" font-size="11">PIL/numpy from albedo</text>
+    <text x="332" y="310" fill="#d0d6ff" font-size="10.5">height·normal·roughness·metallic</text>
+    <text x="332" y="326" fill="#9fb4c8" font-size="10">+ quality gates → retry ≤2</text>
+
+    <rect x="588" y="248" width="250" height="86" rx="10" fill="rgba(208,214,255,0.06)" stroke="#d0d6ff" stroke-width="1"/>
+    <text x="604" y="272" fill="#ffffff" font-size="12.5" font-weight="600">asset store + blender-pack</text>
+    <text x="604" y="292" fill="#c8ccd6" font-size="11">writes files + meta.json</text>
+    <text x="604" y="310" fill="#d0d6ff" font-size="10.5">zips 5 maps + scene.py + model</text>
+    <text x="604" y="326" fill="#9fb4c8" font-size="10">blender_pack.make_pack()</text>
+
+    <rect x="860" y="248" width="282" height="86" rx="10" fill="rgba(208,214,255,0.06)" stroke="#d0d6ff" stroke-width="1"/>
+    <text x="876" y="272" fill="#ffffff" font-size="12.5" font-weight="600">REST surface</text>
+    <text x="876" y="292" fill="#c8ccd6" font-size="11">POST /api/generate</text>
+    <text x="876" y="310" fill="#c8ccd6" font-size="11">GET /api/assets/{id}/…</text>
+    <text x="876" y="326" fill="#d0d6ff" font-size="10.5">maps · blender-pack · blend · samples</text>
+
+    <!-- ===== 3 AI SERVICES ===== -->
+    <rect x="44" y="410" width="270" height="120" rx="10" fill="rgba(180,140,255,0.06)" stroke="#b48cff" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="60" y="434" fill="#efe6ff" font-size="12.5" font-weight="600">Qwen-Image-Edit (i2i)</text>
+    <text x="60" y="454" fill="#c4b5e0" font-size="11">existing MLIS · A100</text>
+    <text x="60" y="474" fill="#c4b5e0" font-size="10.5">IN: delighted ref PNG</text>
+    <text x="60" y="490" fill="#c4b5e0" font-size="10.5">OUT: albedo.png (1024×816)</text>
+    <text x="60" y="510" fill="#b48cff" font-size="10.5">/v1/images/edits · ~15–60s</text>
+    <text x="60" y="524" fill="#9a8ec0" font-size="10">fallback: reference itself</text>
+
+    <rect x="330" y="410" width="270" height="120" rx="10" fill="rgba(255,179,127,0.06)" stroke="#ffb37f" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="346" y="434" fill="#fff0e3" font-size="12.5" font-weight="600">Hunyuan3D-2.1 (image→3D)</text>
+    <text x="346" y="454" fill="#d8b598" font-size="11">new svc on existing A100</text>
+    <text x="346" y="474" fill="#d8b598" font-size="10.5">IN: original ref photo</text>
+    <text x="346" y="490" fill="#d8b598" font-size="10.5">OUT: model.glb (~2.4MB)</text>
+    <text x="346" y="510" fill="#ffb37f" font-size="10.5">async /send + /status · ~3–4min</text>
+    <text x="346" y="524" fill="#9a8ec0" font-size="10">octree 512 · texture=true</text>
+
+    <rect x="616" y="410" width="270" height="120" rx="10" fill="rgba(127,224,168,0.06)" stroke="#7fe0a8" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="632" y="434" fill="#e6fff1" font-size="12.5" font-weight="600">CS1 LiteLLM — qwen3-8-27b</text>
+    <text x="632" y="454" fill="#9fd0b0" font-size="11">existing LLM · Tier 2 only</text>
+    <text x="632" y="474" fill="#9fd0b0" font-size="10.5">IN: prompt (from add-on)</text>
+    <text x="632" y="490" fill="#9fd0b0" font-size="10.5">OUT: ```python bpy block</text>
+    <text x="632" y="510" fill="#7fe0a8" font-size="10.5">/v1/chat/completions · ≤300s</text>
+    <text x="632" y="524" fill="#9fd0b0" font-size="10">called by the artist's add-on</text>
+
+    <rect x="902" y="410" width="240" height="120" rx="10" fill="rgba(255,255,255,0.04)" stroke="#d0d6ff" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="918" y="434" fill="#ffffff" font-size="12.5" font-weight="600">blend sidecar (headless Blender)</text>
+    <text x="918" y="454" fill="#c8ccd6" font-size="11">same pod · bpy wheel</text>
+    <text x="918" y="474" fill="#c8ccd6" font-size="10.5">IN: pack maps + model</text>
+    <text x="918" y="490" fill="#c8ccd6" font-size="10.5">OUT: {id}.blend (~2.4MB)</text>
+    <text x="918" y="510" fill="#d0d6ff" font-size="10.5">POST /build-blend · ~10–60s</text>
+    <text x="918" y="524" fill="#9a8ec0" font-size="10">byte-eq to the artist's</text>
+
+    <!-- ===== 4 STORAGE ===== -->
+    <rect x="44" y="660" width="540" height="150" rx="10" fill="rgba(127,212,255,0.07)" stroke="#7fd4ff" stroke-width="1.2"/>
+    <text x="60" y="686" fill="#eaf6ff" font-size="13" font-weight="600">NFS PVC — /data (persistent, 10Gi RWO)</text>
+    <text x="60" y="708" fill="#9fb4c8" font-size="11">references/{id}.png · generated/{id}/</text>
+    <text x="60" y="728" fill="#9fb4c8" font-size="11.5" font-weight="600">albedo.png · height.png · normal.png · roughness.png · metallic.png</text>
+    <text x="60" y="746" fill="#9fb4c8" font-size="11">model.glb (real 3D) OR model.obj (2.5D relief) · meta.json · blends/{id}.blend</text>
+    <text x="60" y="766" fill="#7fd4ff" font-size="10.5">library = directory scan (no DB in PoC) · survives pod restarts</text>
+    <text x="60" y="786" fill="#9fb4c8" font-size="10">meta.json = id·name·tag·prompt·seed·mode·gates·geometry (lineage seed)</text>
+
+    <rect x="616" y="660" width="526" height="150" rx="10" fill="rgba(127,224,168,0.06)" stroke="#7fe0a8" stroke-width="1.2"/>
+    <text x="632" y="686" fill="#e6fff1" font-size="13" font-weight="600">Artist workstation — Blender 4.x / 5.x</text>
+    <text x="632" y="708" fill="#9fd0b0" font-size="11">Tier 1: unzip pack → run scene.py → real .blend + PBR</text>
+    <text x="632" y="728" fill="#9fd0b0" font-size="11">Tier 2: prompt → LLM → bpy code → safe-check → exec</text>
+    <text x="632" y="748" fill="#9fd0b0" font-size="11">or just open the downloaded {id}.blend directly</text>
+    <text x="632" y="770" fill="#7fe0a8" font-size="10.5">output = editable PBR scene, not a locked viewer</text>
+    <text x="632" y="788" fill="#9fd0b0" font-size="10">key + private CA shipped in the pack for Tier 2</text>
+
+    <!-- ===== ARROWS =====
+         NOTE on the black-triangle fix: a marker-end on a MULTI-SEGMENT path
+         (an elbow like "L 1010 334 L 1010 408") makes some renderers paint the
+         corner joint as a filled default-black triangle. Fix: never put a
+         marker on a cornered path — split each elbow into plain straight
+         segments (fill="none", stroke only) and put the arrowhead marker ONLY
+         on the final straight run. -->
+    <!-- client -> app (generate) -->
+    <line x1="169" y1="164" x2="169" y2="246" stroke="#7fd4ff" stroke-width="1.8" marker-end="url(#d1)"/>
+    <text x="180" y="212" fill="#7fd4ff" font-size="11">POST /api/generate (multipart)</text>
+
+    <!-- app -> qwen (albedo): down -->
+    <line x1="120" y1="334" x2="120" y2="408" stroke="#b48cff" stroke-width="1.8" marker-end="url(#d2)"/>
+    <text x="128" y="378" fill="#b48cff" font-size="10.5">ref PNG</text>
+    <!-- qwen -> app (albedo back): up -->
+    <line x1="210" y1="408" x2="210" y2="334" stroke="#b48cff" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#d2)"/>
+    <text x="216" y="372" fill="#b48cff" font-size="10.5">albedo.png</text>
+
+    <!-- app -> hunyuan (glb): down -->
+    <line x1="420" y1="334" x2="420" y2="408" stroke="#ffb37f" stroke-width="1.8" marker-end="url(#d3)"/>
+    <text x="428" y="378" fill="#ffb37f" font-size="10.5">ref photo</text>
+    <!-- hunyuan -> app (glb back): up -->
+    <line x1="510" y1="408" x2="510" y2="334" stroke="#ffb37f" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#d3)"/>
+    <text x="516" y="372" fill="#ffb37f" font-size="10.5">model.glb</text>
+
+    <!-- app -> sidecar (blend): elbow split into 2 clean segments; arrowhead on the down run -->
+    <line x1="780" y1="334" x2="1010" y2="334" stroke="#d0d6ff" stroke-width="1.8"/>
+    <line x1="1010" y1="334" x2="1010" y2="408" stroke="#d0d6ff" stroke-width="1.8" marker-end="url(#d5)"/>
+    <text x="820" y="326" fill="#d0d6ff" font-size="10.5">pack (maps+model) → /build-blend</text>
+
+    <!-- app -> PVC (persist): down -->
+    <line x1="314" y1="540" x2="314" y2="658" stroke="#7fd4ff" stroke-width="1.8" marker-end="url(#d1)"/>
+    <text x="322" y="600" fill="#7fd4ff" font-size="11">write maps + model + meta.json</text>
+
+    <!-- app -> client (result): up -->
+    <line x1="980" y1="334" x2="980" y2="246" stroke="#7fd4ff" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#d1)"/>
+    <text x="700" y="222" fill="#7fd4ff" font-size="10.5">result JSON (id, urls, badges)</text>
+
+    <!-- sidecar -> PVC (cached blend): down -->
+    <line x1="1022" y1="540" x2="1022" y2="658" stroke="#d0d6ff" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#d5)"/>
+    <text x="1030" y="600" fill="#d0d6ff" font-size="10.5">cached .blend</text>
+
+    <!-- Tier 2 direct arrow: artist add-on calls LLM directly (bypasses app pod).
+         Straight vertical run in the gap between the storage and AI lanes. -->
+    <line x1="760" y1="660" x2="760" y2="530" stroke="#7fe0a8" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#d4)"/>
+    <text x="770" y="600" fill="#7fe0a8" font-size="11">Tier 2: add-on → LLM → bpy code</text>
+    <text x="770" y="616" fill="#7fe0a8" font-size="10.5">(direct — never touches the app pod)</text>
+
+    <!-- client downloads from PVC via app -->
+    <line x1="713" y1="164" x2="713" y2="200" stroke="#7fd4ff" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#d1)"/>
+    <text x="600" y="196" fill="#7fd4ff" font-size="10.5">GET maps/pack/.blend</text>
+  </svg>
+
+  <div class="legend">
+    <span><span class="chip" style="background:#7fd4ff"></span>Browser + storage</span>
+    <span><span class="chip" style="background:#d0d6ff"></span>App pod (orchestrator) + blend sidecar</span>
+    <span><span class="chip" style="background:#b48cff"></span>Qwen-Image-Edit (albedo)</span>
+    <span><span class="chip" style="background:#ffb37f"></span>Hunyuan3D-2.1 (GLB)</span>
+    <span><span class="chip" style="background:#7fe0a8"></span>Artist + LLM (Tier 2, direct)</span>
+    <span style="opacity:.75">dashed = reused existing services (no new deployment)</span>
+  </div>
+
+  <div class="foot">
+    <b>Read the arrows:</b> solid = the app orchestrates (upload → delight → albedo → PBR → GLB → persist); dashed = a <i>direct</i> path.
+    The only dashed path that <b>bypasses the app</b> is <b>Tier 2</b> — the artist's add-on calls the CS1 LLM itself (scoped virtual key + private CA), so no prompt or generated code ever passes through the app pod.
+    <div style="margin-top:4px;"><b>Fallbacks (the flow never dead-ends):</b> albedo → reference itself if the model is cold · 3D → 2.5D CPU relief if the GPU is busy · every failed quality gate → re-generate (≤2).</div>
+  </div>
+</div>
+</body>
+</html>

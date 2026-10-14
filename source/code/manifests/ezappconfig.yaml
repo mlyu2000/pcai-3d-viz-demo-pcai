@@ -1,0 +1,36 @@
+# Registration-only EzAppConfig for the PCAI 3D Visualization PoC.
+#
+# This does NOT install the workload. It is a "minimal request" (autoHelm: false +
+# hpe-ezua/minimal-request-skip-validation) that registers the app + its endpoint
+# with the Ezmeral UI so it appears in the application list, exactly like
+# `pcai-styling` does for the Styling Demo. The actual workload is deployed
+# separately via scripts/build-deploy.sh (raw manifests in this folder).
+#
+# Apply:  kubectl apply -f manifests/ezappconfig.yaml
+#   (CRD is cluster-scoped, so no -n flag.)
+apiVersion: ezconfig.hpe.ezaf.com/v1alpha1
+kind: EzAppConfig
+metadata:
+  name: pcai-3d-viz-0.1.0
+  annotations:
+    hpe-ezua/minimal-request-skip-validation: "true"
+spec:
+  name: pcai-3d-viz
+  label: pcai-3d-viz
+  version: 0.1.0
+  chartVersion: 0.1.0
+  category: dataEngineering
+  description: "Astra 3D Visualization demo (PCAI): reference photo -> AI-generated albedo + height maps -> Three.js preview -> Blender pack + add-on for artist-side 3D relighting."
+  install: true
+  autoHelm: false
+  backoffLimit: 3
+  logoImage: ""
+  options:
+    create-namespace: "false"
+    namespace: viz-demo
+    timeout: 5m
+    wait: "true"
+  values: |
+    ezua:
+      virtualService:
+        endpoint: "viz-demo.aie.cs1.ctc.sg.lab"

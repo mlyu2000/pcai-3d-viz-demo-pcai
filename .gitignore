@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.vite/
+.ipynb_checkpoints/
+.idea/
+.DS_Store
+ca/key.txt
+*.tgz.bak

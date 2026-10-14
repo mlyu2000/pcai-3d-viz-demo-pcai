@@ -1,0 +1,17 @@
+{{- if eq (default "pvc" .Values.storage.type) "pvc" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.storage.pvcName }}
+  namespace: {{ .Values.platform.namespace }}
+  labels:
+    {{- include "pcai.viz.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.storage.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.size | quote }}
+{{- end }}

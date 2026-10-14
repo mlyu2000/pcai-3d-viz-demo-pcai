@@ -1,0 +1,5 @@
+# Registration-only values. The real workload (viz-demo-app) is kubectl-managed in
+# the viz-demo namespace. This chart only records the endpoint for the EzApps UI tile.
+ezua:
+  virtualService:
+    endpoint: "viz-demo.aie.cs1.ctc.sg.lab"

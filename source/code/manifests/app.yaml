@@ -1,0 +1,196 @@
+# PCAI 3D Viz PoC — single pod: FastAPI backend + static Three.js frontend (served at '/').
+# Texture inference runs on the EXISTING MLIS Qwen-Image-Edit (i2i) predictor in
+# project-user-aieadmin — zero new model/GPU deployments.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viz-demo-app
+  namespace: viz-demo
+  labels:
+    app: viz-demo-app
+    app.kubernetes.io/part-of: pcai-viz-demo
+    app.kubernetes.io/component: app
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: viz-demo-app
+  template:
+    metadata:
+      labels:
+        app: viz-demo-app
+        app.kubernetes.io/part-of: pcai-viz-demo
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: app
+          image: registry.ctc.sg.lab:5000/pcai-viz-app:VIZ_TAG
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # MLIS i2i predictor (existing; same one the Styling Demo uses).
+            # Leave IMG_ENDPOINT empty to run in fallback mode (reference as albedo).
+            - name: IMG_ENDPOINT
+              value: "http://pcai-qwen-image-edit-gguf-predictor.project-user-aieadmin.svc.cluster.local:80"
+            - name: IMG_MODEL
+              value: "pcai-qwen-image-edit-gguf"
+            - name: MLIS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mlis-key
+                  key: key
+                  optional: true
+            # Real-3D stage (v14): Hunyuan3D-2.1 predictor (image->3D + PBR).
+            # The backend probes /health; when it's down it transparently falls
+            # back to the 2.5D relief, so leaving this at the default is safe
+            # before the predictor is registered. REAL3D_KEY reuses MLIS_KEY
+            # (same access-token secret, project-user-aieadmin).
+            - name: REAL3D_ENDPOINT
+              value: "http://pcai-hunyuan3d-predictor.project-user-aieadmin.svc.cluster.local:80"
+            # v14.8: higher-detail reconstruction. octree 256->512 = finer voxel
+            # grid (thin car details survive); steps 5->10 = cleaner shape
+            # diffusion. Generation ~2x slower (2 -> ~3-4 min) — REAL3D_TIMEOUT_S
+            # raised to 300 so the longer run isn't cut off.
+            - name: REAL3D_OCTREE
+              value: "512"
+            - name: REAL3D_STEPS
+              value: "10"
+            - name: REAL3D_TIMEOUT_S
+              value: "300"
+            - name: DATA_DIR
+              value: /data
+            - name: DOMAIN
+              value: "viz-demo.aie.cs1.ctc.sg.lab"
+            # App version label (substituted from the image tag at deploy time)
+            - name: APP_VERSION
+              value: "VIZ_TAG"
+            # Cap CPU inference threads to the pod's 1-vCPU quota. torch and
+            # onnxruntime default to the HOST's core count (64 on the CS1 nodes),
+            # which oversubscribes this 1-vCPU container: the ~40s do_geometry
+            # build then thrashes (context switching on the cgroup slice) and
+            # holds the single vCPU so long that /api/health can't answer the
+            # liveness probe in time -> kubelet restarts the pod mid-job.
+            # 1 thread per model = deterministic, no thrash, ~50s worst case.
+            - name: OMP_NUM_THREADS
+              value: "1"
+            - name: OPENBLAS_NUM_THREADS
+              value: "1"
+            - name: MKL_NUM_THREADS
+              value: "1"
+            - name: ONNX_NUM_THREADS
+              value: "1"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              # 2Gi: the image->3D geometry path loads Depth-Anything V2 Small
+              # (CPU torch, ~1.5GiB peak) + rembg U2NetP on first use.
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              # /healthz is a no-op endpoint (no I/O, no model checks) so a
+              # long do_geometry job can never starve it past the timeout and
+              # trigger a mid-job restart. Readiness (/api/health) keeps
+              # checking the model; liveness only checks "is the process up".
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+        # ------------------------------------------------------------------
+        # .blend sidecar: headless Blender (the `bpy` wheel, Python 3.13) that
+        # turns an asset's Blender-pack into a ready-to-open .blend. It shares
+        # the same PVC (/data) so it reads the asset maps directly. The main
+        # app proxies /api/assets/{id}/blend to it (localhost:8100). The .blend
+        # is byte-equivalent to the artist's Load-Pack output (same scene.py).
+        # ------------------------------------------------------------------
+        - name: blend
+          image: registry.ctc.sg.lab:5000/pcai-viz-blend:VIZ_TAG
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: blend
+              containerPort: 8100
+          env:
+            - name: APP_URL
+              value: "http://127.0.0.1:8000"
+            - name: BLEND_DIR
+              value: /data/blends
+            - name: PORT
+              value: "8100"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              # Blender startup + a scene build is light; the pack's scene.py
+              # is simple (primitives + a small OBJ import), not heavy geometry.
+              cpu: "1"
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8100
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8100
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: viz-results
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        # NFS volume arrives root:root and the cluster blocks root init
+        # containers (Kyverno enforces pod-level runAsNonRoot) — fsGroup
+        # chowns the mount to gid 1000 + setgid so the app can write.
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: viz-demo-app
+  namespace: viz-demo
+  labels:
+    app: viz-demo-app
+    app.kubernetes.io/part-of: pcai-viz-demo
+spec:
+  selector:
+    app: viz-demo-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000

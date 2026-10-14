@@ -1,0 +1,17 @@
+# PCAI 3D Viz PoC — asset store PVC (file-based library: references + generated maps + meta.json).
+# storageClass "nfs" = the CS1 provisioned NFS class (same as styling-results).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: viz-results
+  namespace: viz-demo
+  labels:
+    app: viz-demo
+    app.kubernetes.io/part-of: pcai-viz-demo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 10Gi

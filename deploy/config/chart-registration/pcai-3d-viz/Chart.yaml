@@ -1,0 +1,7 @@
+apiVersion: v2
+appVersion: 0.1.0
+description: Astra 3D Visualization demo (PCAI). Registers the viz-demo endpoint for the
+  EzApps UI tile; workloads run in viz-demo.
+name: pcai-3d-viz
+type: application
+version: 0.1.0

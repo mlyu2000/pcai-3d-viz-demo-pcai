@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PCAI 3D Visualization — Generate Pipeline</title>
+<style>
+  body { margin:0; background:transparent; color:var(--foreground,#e8e8ee);
+         font-family: var(--font-family, 'Segoe UI', system-ui, sans-serif); }
+  .wrap { width:1120px; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--muted-foreground,#9a9aa5); font-size:12.5px; margin:0 0 14px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; font-size:12px; color:var(--muted-foreground,#9a9aa5); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .chip { width:12px; height:12px; border-radius:3px; display:inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>End-to-End Generate Pipeline — <code>POST /api/generate</code></h1>
+  <p class="sub">Synchronous (threadpool). Every stage has a fallback, so the flow never dead-ends. Asset ID = content hash of the reference → idempotent.</p>
+  <svg width="1120" height="700" viewBox="0 0 1120 700" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="a1" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#7fd4ff"/></marker>
+      <marker id="a2" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#b48cff"/></marker>
+      <marker id="a3" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#ffb37f"/></marker>
+      <marker id="a4" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="#7fe0a8"/></marker>
+    </defs>
+
+    <!-- STAGE ROW (top) -->
+    <!-- Stage 1: Ingest -->
+    <rect x="30" y="60" width="200" height="120" rx="12" fill="rgba(127,212,255,0.08)" stroke="#7fd4ff" stroke-width="1.2"/>
+    <text x="50" y="88" fill="#eaf6ff" font-size="14" font-weight="700">1 · Ingest &amp; normalize</text>
+    <text x="50" y="110" fill="#9fb4c8" font-size="11.5">accept file / URL / path</text>
+    <text x="50" y="128" fill="#9fb4c8" font-size="11.5">validate (≥512 px, ≤8 MB)</text>
+    <text x="50" y="146" fill="#9fb4c8" font-size="11.5">delight (remove lighting)</text>
+    <text x="50" y="166" fill="#7fd4ff" font-size="11">hash(ref) → asset ID (idempotent)</text>
+
+    <!-- Stage 2: AI albedo -->
+    <rect x="260" y="60" width="210" height="120" rx="12" fill="rgba(180,140,255,0.08)" stroke="#b48cff" stroke-width="1.2"/>
+    <text x="280" y="88" fill="#efe6ff" font-size="14" font-weight="700">2 · AI albedo (i2i)</text>
+    <text x="280" y="110" fill="#c4b5e0" font-size="11.5">Qwen-Image-Edit (A100)</text>
+    <text x="280" y="128" fill="#c4b5e0" font-size="11.5">/v1/images/edits, single-ref</text>
+    <text x="280" y="146" fill="#c4b5e0" font-size="11.5">strength 0.3–0.95 · ~15–60 s</text>
+    <text x="280" y="166" fill="#b48cff" font-size="11">fallback: reference itself</text>
+
+    <!-- Stage 3: PBR -->
+    <rect x="500" y="60" width="210" height="120" rx="12" fill="rgba(255,255,255,0.05)" stroke="#d0d6ff" stroke-width="1.2"/>
+    <text x="520" y="88" fill="#ffffff" font-size="14" font-weight="700">3 · PBR + quality gates</text>
+    <text x="520" y="110" fill="#c8ccd6" font-size="11.5">derive height / normal /</text>
+    <text x="520" y="128" fill="#c8ccd6" font-size="11.5">roughness / metallic (PIL/numpy)</text>
+    <text x="520" y="146" fill="#c8ccd6" font-size="11.5">gates: normal + albedo de-light</text>
+    <text x="520" y="166" fill="#d0d6ff" font-size="11">fail → re-generate (≤2 retries)</text>
+
+    <!-- Stage 4: 3D (branch) -->
+    <rect x="740" y="60" width="350" height="120" rx="12" fill="rgba(255,179,127,0.07)" stroke="#ffb37f" stroke-width="1.2"/>
+    <text x="760" y="88" fill="#fff0e3" font-size="14" font-weight="700">4 · Optional 3D (do_geometry)</text>
+    <text x="760" y="110" fill="#d8b598" font-size="11.5">first: Hunyuan3D-2.1 (A100)</text>
+    <text x="760" y="128" fill="#d8b598" font-size="11.5">async /send + /status → textured GLB</text>
+    <text x="760" y="146" fill="#d8b598" font-size="11.5">octree 512 · 10 steps · ~3–4 min</text>
+    <text x="760" y="166" fill="#7fe0a8" font-size="11">if GPU busy/down → falls back to 2.5D relief</text>
+
+    <!-- branch arrows -->
+    <line x1="230" y1="120" x2="258" y2="120" stroke="#7fd4ff" stroke-width="2" marker-end="url(#a1)"/>
+    <line x1="470" y1="120" x2="498" y2="120" stroke="#b48cff" stroke-width="2" marker-end="url(#a2)"/>
+    <line x1="710" y1="120" x2="738" y2="120" stroke="#d0d6ff" stroke-width="2" marker-end="url(#a1)"/>
+
+    <!-- 3D branch: two paths -->
+    <rect x="770" y="220" width="150" height="90" rx="10" fill="rgba(255,179,127,0.1)" stroke="#ffb37f" stroke-width="1.2"/>
+    <text x="786" y="246" fill="#fff0e3" font-size="12.5" font-weight="600">real 3D (GLB)</text>
+    <text x="786" y="266" fill="#d8b598" font-size="11">Hunyuan3D-2.1</text>
+    <text x="786" y="282" fill="#d8b598" font-size="11">true mesh + baked PBR</text>
+    <text x="786" y="298" fill="#ffb37f" font-size="10.5">preferred path</text>
+
+    <rect x="940" y="220" width="150" height="90" rx="10" fill="rgba(127,224,168,0.09)" stroke="#7fe0a8" stroke-width="1.2"/>
+    <text x="956" y="246" fill="#e6fff1" font-size="12.5" font-weight="600">2.5D relief (OBJ)</text>
+    <text x="956" y="266" fill="#9fd0b0" font-size="11">CPU · rembg U2NetP</text>
+    <text x="956" y="282" fill="#9fd0b0" font-size="11">+ Depth-Anything V2</text>
+    <text x="956" y="298" fill="#7fe0a8" font-size="10.5">automatic fallback</text>
+
+    <path d="M 915 180 L 845 218" stroke="#ffb37f" stroke-width="1.8" fill="none" marker-end="url(#a3)"/>
+    <text x="840" y="205" fill="#ffb37f" font-size="10.5">GPU free</text>
+    <path d="M 915 180 L 1015 218" stroke="#7fe0a8" stroke-width="1.8" fill="none" marker-end="url(#a4)"/>
+    <text x="975" y="205" fill="#7fe0a8" font-size="10.5">GPU busy</text>
+
+    <!-- Stage 5: Persist -->
+    <rect x="30" y="360" width="300" height="110" rx="12" fill="rgba(127,212,255,0.08)" stroke="#7fd4ff" stroke-width="1.2"/>
+    <text x="50" y="388" fill="#eaf6ff" font-size="14" font-weight="700">5 · Persist to library (PVC)</text>
+    <text x="50" y="410" fill="#9fb4c8" font-size="11.5">/data/generated/{id}/</text>
+    <text x="50" y="428" fill="#9fb4c8" font-size="11.5">5 maps + model.glb / model.obj</text>
+    <text x="50" y="446" fill="#9fb4c8" font-size="11.5">meta.json (prompt, seed, mode, gates)</text>
+    <text x="50" y="464" fill="#7fd4ff" font-size="11">NFS PVC 10 Gi, RWO — persists across restarts</text>
+
+    <!-- Stage 6: Consume -->
+    <rect x="360" y="360" width="340" height="110" rx="12" fill="rgba(127,224,168,0.07)" stroke="#7fe0a8" stroke-width="1.2"/>
+    <text x="380" y="388" fill="#e6fff1" font-size="14" font-weight="700">6 · Consume</text>
+    <text x="380" y="410" fill="#9fd0b0" font-size="11.5">Three.js preview (albedo+bump or GLB)</text>
+    <text x="380" y="428" fill="#9fd0b0" font-size="11.5">Library grid (browse / tag / search)</text>
+    <text x="380" y="446" fill="#9fd0b0" font-size="11.5">download: maps · Blender-pack · .blend</text>
+    <text x="380" y="464" fill="#7fe0a8" font-size="11">asset appears in the shared library</text>
+
+    <!-- Blender pack branch -->
+    <rect x="740" y="360" width="350" height="110" rx="12" fill="rgba(255,255,255,0.04)" stroke="#d0d6ff" stroke-width="1.2"/>
+    <text x="760" y="388" fill="#ffffff" font-size="14" font-weight="700">Blender-pack (Tier 1) → artist Blender</text>
+    <text x="760" y="410" fill="#c8ccd6" font-size="11.5">zip: 5 maps + scene.py + README</text>
+    <text x="760" y="428" fill="#c8ccd6" font-size="11.5">+ model.glb/obj + CA bundle + key.txt</text>
+    <text x="760" y="446" fill="#c8ccd6" font-size="11.5">scene.py: real GLB → OBJ → procedural</text>
+    <text x="760" y="464" fill="#d0d6ff" font-size="11">Tier 2: AI Model Box → LLM bpy code (separate path)</text>
+
+    <!-- arrows into persist/consume (elbows split into straight segments to
+         avoid a default-black triangle at the corner joint — see data-flow note) -->
+    <path d="M 845 310 L 845 330" stroke="#7fd4ff" stroke-width="1.8" fill="none"/>
+    <path d="M 845 330 L 180 330" stroke="#7fd4ff" stroke-width="1.8" fill="none"/>
+    <path d="M 180 330 L 180 358" stroke="#7fd4ff" stroke-width="1.8" fill="none" marker-end="url(#a1)"/>
+    <path d="M 180 470 L 180 486" stroke="#7fd4ff" stroke-width="1.6" stroke-dasharray="5 4" fill="none"/>
+    <path d="M 180 486 L 530 486" stroke="#7fd4ff" stroke-width="1.6" stroke-dasharray="5 4" fill="none"/>
+    <path d="M 530 486 L 530 470" stroke="#7fd4ff" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#a1)"/>
+    <line x1="700" y1="415" x2="738" y2="415" stroke="#7fe0a8" stroke-width="1.8" marker-end="url(#a4)"/>
+
+    <!-- Bottom: inputs & outputs band -->
+    <rect x="30" y="560" width="520" height="100" rx="12" fill="rgba(255,255,255,0.03)" stroke="#8a8f9a" stroke-width="1.2"/>
+    <text x="50" y="588" fill="#c8ccd6" font-size="13.5" font-weight="700">Inputs (one of)</text>
+    <text x="50" y="610" fill="#9a9aa5" font-size="11.5">• Reference image (upload / URL / path)</text>
+    <text x="50" y="628" fill="#9a9aa5" font-size="11.5">• Prompt (i2i instruction) · strength · seed</text>
+    <text x="50" y="646" fill="#9a9aa5" font-size="11.5">• do_geometry flag · name / tag</text>
+
+    <rect x="570" y="560" width="520" height="100" rx="12" fill="rgba(255,255,255,0.03)" stroke="#8a8f9a" stroke-width="1.2"/>
+    <text x="590" y="588" fill="#c8ccd6" font-size="13.5" font-weight="700">Outputs (per asset)</text>
+    <text x="590" y="610" fill="#9a9aa5" font-size="11.5">• albedo / height / normal / roughness / metallic (PNG)</text>
+    <text x="590" y="628" fill="#9a9aa5" font-size="11.5">• model.glb (real 3D) or model.obj (2.5D relief)</text>
+    <text x="590" y="646" fill="#9a9aa5" font-size="11.5">• Blender-pack zip · .blend · meta.json · Three.js preview</text>
+  </svg>
+
+  <div class="legend">
+    <span><span class="chip" style="background:#7fd4ff"></span>Ingest / persist (deterministic)</span>
+    <span><span class="chip" style="background:#b48cff"></span>AI albedo (Qwen-Image-Edit i2i)</span>
+    <span><span class="chip" style="background:#d0d6ff"></span>PBR synthesis + Blender-pack</span>
+    <span><span class="chip" style="background:#ffb37f"></span>Real 3D (Hunyuan3D-2.1, GPU)</span>
+    <span><span class="chip" style="background:#7fe0a8"></span>2.5D CPU fallback + consume</span>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="PCAI 3D Visualization PoC — reference image to albedo + height texture maps with live 3D preview">
+<title>PCAI 3D Viz PoC — Texture Studio</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #161b22;
+    --inset: #0d1117;
+    --border: #2b3441;
+    --text: #e6edf3;
+    --dim: #9aa7b4;
+    --accent: #4c9aff;
+    --accent-2: #6cb0ff;
+    --ok: #2ea043;
+    --ok-2: #4ac26b;
+    --warn: #d29922;
+    --err: #f85149;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header h1 .sub { color: var(--dim); font-weight: 400; font-size: 12px; margin-left: 10px; }
+  .tabs { display: flex; gap: 6px; }
+  .tab-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--dim);
+    padding: 7px 16px; border-radius: var(--radius); cursor: pointer; font-size: 13px;
+  }
+  .tab-btn:hover { color: var(--text); border-color: var(--accent); }
+  .tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  #model-banner {
+    margin: 12px 20px 0; padding: 9px 14px;
+    border: 1px solid var(--warn); background: rgba(210, 153, 34, .12);
+    color: var(--warn); border-radius: var(--radius); font-size: 13px;
+  }
+  #error-area { margin: 10px 20px 0; padding: 9px 14px; border-radius: var(--radius); font-size: 13px; }
+  #error-area.error { background: rgba(248, 81, 73, .12); border: 1px solid var(--err); color: var(--err); }
+  #error-area.info { background: rgba(76, 154, 255, .12); border: 1px solid var(--accent); color: var(--accent-2); }
+
+  main { padding: 16px 20px 40px; max-width: 1500px; margin: 0 auto; }
+
+  .gen-columns { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 16px; align-items: start; }
+  @media (max-width: 1100px) { .gen-columns { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .panel h2 { margin: 0 0 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--dim); }
+  .panel h3 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
+
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 18px; text-align: center; color: var(--dim);
+    cursor: pointer; background: var(--inset);
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(76, 154, 255, .06); }
+  .dropzone .link { color: var(--accent-2); text-decoration: underline; }
+  .ref-preview { max-width: 100%; max-height: 150px; border-radius: 6px; margin-top: 10px; display: block; }
+  .ref-status { margin-top: 8px; font-size: 12px; color: var(--dim); word-break: break-all; }
+
+  .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .sample-grid.loading { display: block; color: var(--dim); font-size: 12px; padding: 6px 2px; }
+  .sample-thumb {
+    display: flex; flex-direction: column; gap: 4px;
+    background: var(--inset); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px; cursor: pointer; color: var(--dim); font-size: 11px; text-align: left;
+  }
+  .sample-thumb:hover { border-color: var(--accent); }
+  .sample-thumb.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .sample-thumb img { width: 100%; height: 56px; object-fit: cover; border-radius: 4px; }
+  .sample-thumb span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .field { display: block; margin-top: 12px; }
+  .field > span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px; }
+  select, input[type=number], input[type=text], input[type=search], textarea {
+    width: 100%; background: var(--inset); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit;
+  }
+  select:focus, input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 4px 0; }
+  .geom-toggle { border-top: 1px solid var(--border); padding-top: 12px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--dim); cursor: pointer; }
+  .check input[type=checkbox] { width: 16px; height: 16px; margin-top: 1px; accent-color: var(--accent); flex: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--inset); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; text-decoration: none;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: var(--accent-2); }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .busy::before {
+    content: ''; width: 12px; height: 12px; flex: none;
+    border: 2px solid rgba(255, 255, 255, .35); border-top-color: currentColor;
+    border-radius: 50%; display: inline-block; animation: spin .8s linear infinite;
+  }
+
+  #generate-btn { width: 100%; }
+  .gen-hint { margin-top: 10px; font-size: 12px; color: var(--warn); }
+  .gen-desc { margin-top: 10px; font-size: 12px; line-height: 1.5; color: var(--dim); }
+
+  .result-area { display: flex; gap: 10px; margin-top: 14px; }
+  .map-thumb { flex: 1; background: var(--inset); border: 1px solid var(--border); border-radius: 6px; padding: 8px; text-align: center; min-width: 0; }
+  .map-thumb > span { display: block; font-size: 11px; color: var(--dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .8px; }
+  .map-thumb img { width: 100%; border-radius: 4px; display: block; }
+  .map-placeholder { width: 100%; height: 120px; border-radius: 4px; background: repeating-linear-gradient(45deg, #11161d 0 10px, #0d1117 10px 20px); }
+  .result-meta { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .4px; }
+  .badge.ok { background: rgba(46, 160, 67, .18); color: var(--ok-2); border: 1px solid var(--ok); }
+  .badge.warn { background: rgba(210, 153, 34, .18); color: var(--warn); border: 1px solid var(--warn); }
+  .dim { color: var(--dim); font-size: 12px; }
+
+  #preview-canvas {
+    width: 100%; height: 420px; display: block;
+    background: var(--inset); border: 1px solid var(--border); border-radius: 6px;
+    cursor: grab;
+  }
+  #preview-canvas:active { cursor: grabbing; }
+  .preview-note { font-size: 12px; color: var(--warn); margin-top: 6px; }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .inline-edit { display: flex; gap: 8px; margin-top: 10px; }
+  .inline-edit input { flex: 1; min-width: 0; }
+
+  .library-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .library-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--dim); }
+  .library-head input { max-width: 340px; }
+
+  .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .asset-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px; display: flex; flex-direction: column; gap: 9px;
+  }
+  .asset-card.loading { display: block; color: var(--dim); grid-column: 1 / -1; padding: 24px; text-align: center; }
+  .card-thumb { width: 100%; height: 130px; object-fit: cover; border-radius: 6px; background: var(--inset); }
+  .card-title-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card-title-row h3 { margin: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-meta-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chip {
+    background: rgba(76, 154, 255, .14); border: 1px solid rgba(76, 154, 255, .4);
+    color: var(--accent-2); font-size: 11px; padding: 1px 8px; border-radius: 999px;
+  }
+  .card-edit-row { display: flex; gap: 6px; }
+  .card-edit-row input { flex: 1; min-width: 0; padding: 5px 8px; font-size: 12px; }
+  .card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>PCAI 3D Visualization PoC <span class="sub">reference &rarr; albedo + height maps &rarr; live 3D preview</span></h1>
+    <div class="tabs">
+      <button type="button" class="tab-btn active" data-tab="generate">Generate</button>
+      <button type="button" class="tab-btn" data-tab="library">Asset Library</button>
+    </div>
+  </header>
+
+  <div id="model-banner" class="banner" hidden>AI image model unavailable — generations will fall back to the reference image</div>
+  <div id="error-area" hidden></div>
+
+  <main>
+    <!-- ============ TAB: GENERATE ============ -->
+    <section id="tab-generate" class="tab-pane">
+      <div class="gen-columns">
+
+        <!-- Column 1: Reference -->
+        <div class="panel">
+          <h2>1 &middot; Reference</h2>
+
+          <div id="dropzone" class="dropzone">
+            <div id="dz-hint">Drag &amp; drop an image here<br>or <span class="link">click to browse</span></div>
+            <input type="file" id="file-input" accept="image/png,image/jpeg" hidden>
+            <img id="ref-preview" class="ref-preview" alt="reference preview" hidden>
+          </div>
+          <div id="ref-status" class="ref-status" hidden></div>
+
+          <h3>Sample library</h3>
+          <div id="sample-grid" class="sample-grid loading">Loading samples&hellip;</div>
+
+          <label class="field">
+            <span>Material preset</span>
+            <select id="preset-select">
+              <option value="cup">Cup</option>
+              <option value="hat">Hat</option>
+              <option value="car">Car</option>
+              <option value="generic" selected>Generic</option>
+              <option value="custom">Custom prompt</option>
+            </select>
+          </label>
+
+          <label class="field" id="custom-prompt-field" hidden>
+            <span>Custom prompt</span>
+            <textarea id="custom-prompt" rows="3" placeholder="Describe the texture map to generate&hellip;"></textarea>
+          </label>
+
+          <label class="field">
+            <span>Strength: <b id="strength-value">70%</b></span>
+            <input type="range" id="strength-slider" min="0.3" max="0.95" step="0.01" value="0.7">
+          </label>
+
+          <label class="field">
+            <span>Seed (optional)</span>
+            <input type="number" id="seed-input" placeholder="optional" step="1">
+          </label>
+
+          <label class="field geom-toggle">
+            <span>Build 3D from the image (object-derived geometry)</span>
+            <label class="check">
+              <input type="checkbox" id="geom-toggle" checked>
+              <span>Derive the 3D mesh from the photo (Hunyuan3D-2.1 real 3D, or 2.5D silhouette+depth fallback) instead of the preset shape</span>
+            </label>
+          </label>
+        </div>
+
+        <!-- Column 2: Generate -->
+        <div class="panel">
+          <h2>2 &middot; Generate</h2>
+          <button id="generate-btn" class="btn primary" disabled>Generate</button>
+          <div id="gen-hint" class="gen-hint" hidden>Generating&hellip; this can take 1&ndash;4 minutes (texture first, then the 3D mesh).</div>
+          <p class="gen-desc">Two on-prem models work together: <b>Qwen-Image-Edit</b> converts your reference photo into a full PBR material set &mdash; albedo, height, normal, roughness, metallic. <b>Hunyuan3D-2.1</b> then generates a real textured 3D mesh from the same image (~2&ndash;4 min at high detail); if it is unavailable, a 2.5D relief mesh (silhouette + depth) is used instead. <b>"Build 3D from the image" is on by default</b>, so the preview shows the object derived from your photo &mdash; uncheck it to preview the preset shape instead.</p>
+
+          <div class="result-area">
+            <div class="map-thumb">
+              <span>Albedo</span>
+              <div id="albedo-ph" class="map-placeholder"></div>
+              <img id="albedo-thumb" alt="albedo result" hidden>
+            </div>
+            <div class="map-thumb">
+              <span>Height</span>
+              <div id="height-ph" class="map-placeholder"></div>
+              <img id="height-thumb" alt="height result" hidden>
+            </div>
+          </div>
+
+          <div class="result-meta" id="result-meta" hidden>
+            <span id="mode-badge" class="badge ok" title="">model</span>
+            <span id="geom-badge" class="badge ok" title="" hidden></span>
+            <span id="elapsed" class="dim"></span>
+            <span id="result-name" class="dim"></span>
+          </div>
+        </div>
+
+        <!-- Column 3: 3D preview -->
+        <div class="panel">
+          <h2>3 &middot; 3D Preview</h2>
+          <canvas id="preview-canvas" width="640" height="420"></canvas>
+          <div id="preview-note" class="preview-note" hidden></div>
+
+          <label class="field">
+            <span>Relief (bump) scale: <b id="disp-value">0.05</b></span>
+            <input type="range" id="disp-slider" min="0" max="0.25" step="0.005" value="0.05">
+          </label>
+
+          <div class="btn-row">
+            <a id="dl-albedo" class="btn" href="#" download hidden>Download maps &mdash; albedo</a>
+            <a id="dl-height" class="btn" href="#" download hidden>Download maps &mdash; height</a>
+            <a id="dl-model" class="btn" href="#" download hidden>Download 3D &mdash; model.obj</a>
+            <button id="dl-pack" class="btn" disabled>Download Blender-pack</button>
+            <button id="dl-blend" class="btn" disabled title="Downloads a ready-to-open .blend (same as the add-on's Load Pack); the first click builds it, later clicks are instant">Download &mdash; .blend</button>
+          </div>
+
+          <div class="inline-edit">
+            <input type="text" id="asset-name" placeholder="asset name" disabled>
+            <input type="text" id="asset-tag" placeholder="tag" disabled>
+            <button id="save-asset" class="btn" disabled>Save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TAB: ASSET LIBRARY ============ -->
+    <section id="tab-library" class="tab-pane" hidden>
+      <div class="library-head">
+        <h2>Asset Library</h2>
+        <input type="search" id="library-search" placeholder="Search by name or tag&hellip;">
+      </div>
+      <div id="asset-grid" class="asset-grid">
+        <div class="asset-card loading">Loading assets&hellip;</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="vendor/three.min.js"></script>
+  <script src="vendor/three-gltfloader.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
